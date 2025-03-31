@@ -54,10 +54,22 @@
     }
     
     h1 {
-      font-size: 2.4em;
+      font-size: 2.8em;
       margin-bottom: 1.2em;
+      background: linear-gradient(90deg, #fff2cc, #ffd700, #fff2cc);
+      background-size: 200% auto;
+      color: transparent;
+      background-clip: text;
+      -webkit-background-clip: text;
+      animation: shimmer 4s linear infinite;
+      text-shadow: 0 0 8px rgba(255, 223, 100, 0.3);
     }
-  
+
+    @keyframes shimmer {
+      0% { background-position: 200% center; }
+      100% { background-position: 0% center; }
+    }
+    
     ol {
       padding-left: 0;
       list-style-position: inside;
@@ -70,6 +82,7 @@
     li {
       margin-bottom: 0.4em;
       text-align: center;
+      font-size: 1.2em;
     }
     
     .mist {
