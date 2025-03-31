@@ -55,7 +55,7 @@
     
     h1 {
       font-size: 2.8em;
-      margin-bottom: 1.2em;
+      margin-bottom: 0.6em;
       background: linear-gradient(90deg, #fff2cc, #ffd700, #fff2cc);
       background-size: 200% auto;
       color: transparent;
@@ -72,17 +72,53 @@
     
     ol {
       padding-left: 0;
+      list-style: none;
+      counter-reset: glyph;
       list-style-position: inside;
       display: flex;
       flex-direction: column;
       align-items: center;
       margin: 0 auto;
     }
-  
+    
+    li::before {
+      counter-increment: glyph;
+      content: counter(glyph) ". ";
+      display: inline-block;
+      color: #ffe99b;
+      font-weight: bold;
+      text-shadow: 0 0 6px rgba(255, 220, 120, 0.8);
+      margin-right: 0.4em;
+    }
+    
     li {
-      margin-bottom: 0.4em;
+      margin-bottom: 0.6em;
       text-align: center;
       font-size: 1.2em;
+      opacity: 0;
+      transform: translateY(20px);
+      animation: fadeLine 0.8s ease-out forwards;
+    }
+
+    li:nth-child(1)  { animation-delay: 0.3s; }
+    li:nth-child(2)  { animation-delay: 0.6s; }
+    li:nth-child(3)  { animation-delay: 0.9s; }
+    li:nth-child(4)  { animation-delay: 1.2s; }
+    li:nth-child(5)  { animation-delay: 1.5s; }
+    li:nth-child(6)  { animation-delay: 1.8s; }
+    li:nth-child(7)  { animation-delay: 2.1s; }
+    li:nth-child(8)  { animation-delay: 2.4s; }
+    li:nth-child(9)  { animation-delay: 2.7s; }
+    li:nth-child(10) { animation-delay: 3.0s; }
+    li:nth-child(11) { animation-delay: 3.3s; }
+    li:nth-child(12) { animation-delay: 3.6s; }
+    li:nth-child(13) { animation-delay: 3.9s; }
+    
+    @keyframes fadeLine {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
     
     .mist {
