@@ -48,13 +48,8 @@
       position: fixed;
       inset: 0;
       z-index: -2;
-      background:
-        /* Vignette: deepens the edges and corners, leaves the glow at the heart. */
-        radial-gradient(ellipse 68% 64% at 50% 50%,
-          rgba(8, 2, 12, 0) 32%,
-          rgba(8, 2, 12, 0.34) 66%,
-          rgba(8, 2, 12, 0.66) 100%),
-        #1a0b1e url("background.jpg") center center / cover no-repeat;
+      /* The image itself carries the deeper edges and sharper detail. */
+      background: #1a0b1e url("background-hd.jpg") center center / cover no-repeat;
     }
 
     /* Starfield: drawn by the script at the bottom of the page. */
