@@ -83,7 +83,22 @@
       100% { transform: translate(0%, 0%) scale(1); }
     }
 
+    /* The scroll: a faint, full-height veil of light behind the text. */
+    .column {
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      width: min(34rem, calc(100vw - 24px));
+      transform: translateX(-50%);
+      background: rgba(255, 244, 228, 0.05);
+      z-index: -1;
+      pointer-events: none;
+      animation: starsIn 2.5s ease-out both;
+    }
+
     .container {
+      position: relative;
       text-align: center;
       padding: clamp(1.25rem, 4vh, 4rem) 1.25rem;
       max-width: 44rem;
@@ -151,7 +166,7 @@
 
     /* Respect visitors who have asked their device for less motion. */
     @media (prefers-reduced-motion: reduce) {
-      .mist, .container, h1, li { animation: none; }
+      .mist, .column, .container, h1, li { animation: none; }
       #stars { animation: none; opacity: 1; }
     }
   </style>
@@ -159,6 +174,7 @@
 <body>
   <canvas id="stars" aria-hidden="true"></canvas>
   <div class="mist" aria-hidden="true"></div>
+  <div class="column" aria-hidden="true"></div>
   <main class="container">
     <h1>Covenants of the Divine Hearth</h1>
     <ol>
