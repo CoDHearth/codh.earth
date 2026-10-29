@@ -51,6 +51,20 @@
       background: #1a0b1e url("background.jpg") center center / cover no-repeat;
     }
 
+    /* Starfield: drawn by the script at the bottom of the page. */
+    #stars {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -1;
+      pointer-events: none;
+      opacity: 0;
+      animation: starsIn 4s ease-out 0.5s forwards;
+    }
+
+    @keyframes starsIn { to { opacity: 1; } }
+
     .mist {
       position: fixed;
       top: -50%;
@@ -138,10 +152,12 @@
     /* Respect visitors who have asked their device for less motion. */
     @media (prefers-reduced-motion: reduce) {
       .mist, .container, h1, li { animation: none; }
+      #stars { animation: none; opacity: 1; }
     }
   </style>
 </head>
 <body>
+  <canvas id="stars" aria-hidden="true"></canvas>
   <div class="mist" aria-hidden="true"></div>
   <main class="container">
     <h1>Covenants of the Divine Hearth</h1>
@@ -168,6 +184,239 @@
     document.querySelectorAll('li').forEach(function (li, n) {
       li.style.setProperty('--i', n + 1);
     });
+
+    // ---------- Starfield ----------
+    // Three kinds of light:
+    //   stars     - fixed points that twinkle, each at its own pace
+    //   sparkles  - golden glints that bloom and fade at random places
+    //   meteors   - a rare, faint shooting star
+    (function () {
+      var canvas = document.getElementById('stars');
+      if (!canvas || !canvas.getContext) return;
+      var ctx = canvas.getContext('2d');
+      var still = window.matchMedia &&
+                  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      // Star colours: warm white, pale gold, rose, and a cool blue-white.
+      var hues = [
+        [255, 248, 230], [255, 248, 230], [255, 236, 170],
+        [255, 210, 220], [215, 225, 255]
+      ];
+
+      // Iridescence: soft pastel colour for any point on the colour wheel,
+      // like light on opal or the inside of a shell. Rounded to 10-degree
+      // steps so the glow images can be reused.
+      var irisCache = {};
+      function iris(h) {
+        h = ((Math.round(h / 10) * 10) % 360 + 360) % 360;
+        if (irisCache[h]) return irisCache[h];
+        var S = 0.95, L = 0.7;
+        var C = (1 - Math.abs(2 * L - 1)) * S, hp = h / 60;
+        var X = C * (1 - Math.abs(hp % 2 - 1)), m = L - C / 2, rgb;
+        if (hp < 1) rgb = [C, X, 0]; else if (hp < 2) rgb = [X, C, 0];
+        else if (hp < 3) rgb = [0, C, X]; else if (hp < 4) rgb = [0, X, C];
+        else if (hp < 5) rgb = [X, 0, C]; else rgb = [C, 0, X];
+        return (irisCache[h] = rgb.map(function (v) {
+          return Math.round((v + m) * 255);
+        }));
+      }
+
+      var W, H, dpr, lastW = 0, stars = [], sparkles = [], meteor = null;
+      var nextSparkle = 0, nextMeteor = 0;
+
+      // A soft round glow, drawn once and reused for every point of light.
+      var glow = document.createElement('canvas');
+      glow.width = glow.height = 64;
+      (function () {
+        var g = glow.getContext('2d');
+        var r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+        r.addColorStop(0, 'rgba(255,255,255,1)');
+        r.addColorStop(0.15, 'rgba(255,255,255,0.8)');
+        r.addColorStop(0.4, 'rgba(255,255,255,0.18)');
+        r.addColorStop(1, 'rgba(255,255,255,0)');
+        g.fillStyle = r;
+        g.fillRect(0, 0, 64, 64);
+      })();
+      var tinted = {};
+      function sprite(c) {
+        var key = c.join(',');
+        if (tinted[key]) return tinted[key];
+        var s = document.createElement('canvas');
+        s.width = s.height = 64;
+        var g = s.getContext('2d');
+        g.drawImage(glow, 0, 0);
+        g.globalCompositeOperation = 'source-in';
+        g.fillStyle = 'rgb(' + key + ')';
+        g.fillRect(0, 0, 64, 64);
+        return (tinted[key] = s);
+      }
+
+      function rand(a, b) { return a + Math.random() * (b - a); }
+
+      function build() {
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        W = window.innerWidth;
+        H = window.innerHeight;
+        canvas.width = Math.round(W * dpr);
+        canvas.height = Math.round(H * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        // Keep the same stars when only the height changes
+        // (phone address bars do this while scrolling).
+        if (stars.length && W === lastW) return;
+        lastW = W;
+        var count = Math.min(220, Math.round(W * H / 6500));
+        stars = [];
+        for (var i = 0; i < count; i++) {
+          var big = Math.random() < 0.04;
+          stars.push({
+            nx: Math.random(),          // position as a share of the screen
+            ny: Math.random(),
+            r: big ? rand(1.4, 2.2) : Math.pow(Math.random(), 2.2) * 1.3 + 0.35,
+            base: big ? rand(0.5, 0.75) : rand(0.18, 0.6),
+            speed: rand(0.4, 1.8),       // twinkle rate
+            phase: Math.random() * 6.283,
+            c: hues[(Math.random() * hues.length) | 0],
+            big: big,
+            hue: Math.random() * 360     // where its glint starts on the wheel
+          });
+        }
+      }
+
+      // Thin four-pointed cross, like light catching on a lens.
+      // Given a hue, each of the four rays takes a different colour,
+      // as if the light were passing through a prism.
+      function spikes(x, y, len, a, c, hue) {
+        ctx.lineWidth = hue == null ? 0.7 : 1;
+        [[1, 0], [0, 1]].forEach(function (d, n) {
+          var gr = ctx.createLinearGradient(
+            x - d[0] * len, y - d[1] * len, x + d[0] * len, y + d[1] * len);
+          var c1 = hue == null ? c : iris(hue + n * 90);
+          var c2 = hue == null ? c : iris(hue + n * 90 + 180);
+          var mid = hue == null ? c : [255, 250, 245];
+          gr.addColorStop(0, 'rgba(' + c1 + ',0)');
+          gr.addColorStop(0.2, 'rgba(' + c1 + ',' + a * 0.35 + ')');
+          gr.addColorStop(0.44, 'rgba(' + c1 + ',' + a * 0.9 + ')');
+          gr.addColorStop(0.5, 'rgba(' + mid + ',' + a * 0.8 + ')');
+          gr.addColorStop(0.56, 'rgba(' + c2 + ',' + a * 0.9 + ')');
+          gr.addColorStop(0.8, 'rgba(' + c2 + ',' + a * 0.35 + ')');
+          gr.addColorStop(1, 'rgba(' + c2 + ',0)');
+          ctx.strokeStyle = gr;
+          ctx.beginPath();
+          ctx.moveTo(x - d[0] * len, y - d[1] * len);
+          ctx.lineTo(x + d[0] * len, y + d[1] * len);
+          ctx.stroke();
+        });
+      }
+
+      function dot(x, y, size, a, c) {
+        ctx.globalAlpha = a;
+        ctx.drawImage(sprite(c), x - size, y - size, size * 2, size * 2);
+      }
+
+      function frame(now) {
+        var t = now / 1000;
+        ctx.clearRect(0, 0, W, H);
+        ctx.globalCompositeOperation = 'lighter';
+
+        // Stars
+        for (var i = 0; i < stars.length; i++) {
+          var s = stars[i];
+          s.x = s.nx * W; s.y = s.ny * H;
+          var tw = still ? 1 :
+            0.55 + 0.45 * Math.sin(t * s.speed + s.phase) *
+                          Math.sin(t * s.speed * 0.37 + s.phase * 2);
+          var a = s.base * tw;
+          dot(s.x, s.y, s.r * 3, a, s.c);
+          if (s.big) {
+            // Glints flare only near the top of each twinkle.
+            var flare = Math.max(0, tw - 0.75) * 4;
+            if (flare > 0 || still) {
+              ctx.globalAlpha = 1;
+              spikes(s.x, s.y, s.r * (still ? 4 : 3 + flare * 5),
+                     (still ? 0.3 : flare * 0.55) * s.base, s.c,
+                     s.hue + t * 12);
+            }
+          }
+        }
+
+        if (!still) {
+          // Sparkles: born at random, swell, then fade.
+          if (t > nextSparkle) {
+            sparkles.push({
+              x: Math.random() * W, y: Math.random() * H,
+              born: t, life: rand(2, 3.4), size: rand(2.2, 4),
+              hue: Math.random() * 360, turn: rand(120, 220)
+            });
+            nextSparkle = t + rand(1.4, 3.2);
+          }
+          sparkles = sparkles.filter(function (p) {
+            var k = (t - p.born) / p.life;
+            if (k >= 1) return false;
+            var a = Math.sin(k * Math.PI);          // rise and fall
+            a *= a;
+            // Colour slides around the wheel over the sparkle's life.
+            var h = p.hue + p.turn * k;
+            dot(p.x, p.y, p.size * (2 + a * 1.2), a * 0.5, iris(h));
+            dot(p.x, p.y, p.size * 0.9, a * 0.55, iris(h + 40));
+            dot(p.x, p.y, p.size * 0.35, a * 0.5, [255, 252, 248]);
+            ctx.globalAlpha = 1;
+            spikes(p.x, p.y, p.size * (2 + a * 3.5), a * 0.6, null, h);
+            return true;
+          });
+
+          // A shooting star every 40-80 seconds.
+          if (!meteor && t > nextMeteor) {
+            if (nextMeteor) {
+              var ang = rand(0.35, 0.75) * (Math.random() < 0.5 ? 1 : -1);
+              meteor = {
+                x: rand(W * 0.15, W * 0.85), y: rand(0, H * 0.4),
+                dx: Math.sin(ang), dy: Math.cos(ang) * 0.6,
+                born: t, life: rand(0.9, 1.4), len: rand(90, 170),
+                dist: rand(220, 420)
+              };
+            }
+            nextMeteor = t + rand(40, 80);
+          }
+          if (meteor) {
+            var m = meteor, k = (t - m.born) / m.life;
+            if (k >= 1) { meteor = null; }
+            else {
+              var hx = m.x + m.dx * m.dist * k, hy = m.y + m.dy * m.dist * k;
+              var fade = Math.sin(k * Math.PI);
+              var g = ctx.createLinearGradient(
+                hx, hy, hx - m.dx * m.len, hy - m.dy * m.len);
+              g.addColorStop(0, 'rgba(255,240,200,' + 0.45 * fade + ')');
+              g.addColorStop(1, 'rgba(255,240,200,0)');
+              ctx.globalAlpha = 1;
+              ctx.strokeStyle = g;
+              ctx.lineWidth = 1.2;
+              ctx.beginPath();
+              ctx.moveTo(hx, hy);
+              ctx.lineTo(hx - m.dx * m.len, hy - m.dy * m.len);
+              ctx.stroke();
+              dot(hx, hy, 3, fade * 0.6, [255, 245, 220]);
+            }
+          }
+        }
+
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+        if (!still) requestAnimationFrame(frame);
+      }
+
+      var resizeTimer;
+      window.addEventListener('resize', function () {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(function () {
+          build();
+          if (still) frame(0);
+        }, 150);
+      });
+
+      build();
+      requestAnimationFrame(frame);
+    })();
   </script>
 </body>
 </html>
